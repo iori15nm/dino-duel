@@ -17,9 +17,32 @@ const STAGE_NAMES = ['숲', '초원', '사막', '용암', '운석'];
 const DIFF_BOX = { x0: W / 2 - 330, y: 98, h: 60 };
 const STAGE_BOX = { x0: (W - (5 * 200 + 4 * 18)) / 2, y: 202, w: 200, h: 112, gap: 18 };
 let stage = 'forest', stageIdx = 0, diffRow = 0; // 난이도 화면에서 고른 경기장 (diffRow: 0=난이도 줄, 1=경기장 줄)
-[...DINOS.flatMap(d => [d.key + '_idle.png', d.key + '_attack.png']), ...STAGES.map(k => 'bg_' + k + '.jpg')].forEach(f => {
-  const im = new Image(); im.onload = () => { IMG[f.split('.')[0]] = im; }; im.src = 'assets/' + f;
+// 이미지를 모두 받기 전에는 로딩 화면만 보여줌 (예전 코드 그림이 잠깐 보이는 문제 방지)
+const ASSETS = [...DINOS.flatMap(d => [d.key + '_idle.png', d.key + '_attack.png']), ...STAGES.map(k => 'bg_' + k + '.jpg')];
+let assetDone = 0;
+const loadStart = performance.now();
+ASSETS.forEach(f => {
+  const im = new Image(), done = () => { assetDone++; };
+  im.onload = () => { IMG[f.split('.')[0]] = im; done(); }; im.onerror = done; im.src = 'assets/' + f;
 });
+const assetsReady = () => assetDone >= ASSETS.length || performance.now() - loadStart > 25000; // 25초가 지나면 받은 것만으로 시작
+function drawLoading() {
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0f2418'); g.addColorStop(1, '#2a1c0e');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  txt('다이노 듀얼', W / 2, 250, 96, '#ffb347', 'center', '#2b1300', 12);
+  txt('공룡들이 경기장으로 오는 중' + '.'.repeat(1 + Math.floor(frame / 20) % 3), W / 2, 360, 32, '#fff');
+  const k = assetDone / ASSETS.length, bw = 560, bx = W / 2 - bw / 2, by = 410;
+  ctx.fillStyle = 'rgba(255,255,255,.15)'; rr(bx, by, bw, 24, 12); ctx.fill();
+  ctx.fillStyle = '#ffb347'; rr(bx, by, Math.max(24, bw * k), 24, 12); ctx.fill();
+  txt(Math.round(k * 100) + '%', W / 2, by + 60, 26, '#ffe066', 'center', null);
+  for (let i = 0; i < 5; i++) { // 공룡 발자국이 하나씩 찍히는 모양
+    const a = (frame * 0.05 - i * 0.6 + 30) % 3, x = W / 2 - 200 + i * 100, y = 545 + (i % 2) * 18;
+    ctx.globalAlpha = Math.max(0, 1 - a / 2); ctx.fillStyle = '#e2c98f';
+    ctx.beginPath(); ctx.ellipse(x, y, 12, 15, 0, 0, 7); ctx.fill();
+    for (const d of [-1, 0, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 13, y - 22 + Math.abs(d) * 6, 5, 9, d * 0.4, 0, 7); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+}
 function drawDino(def, p, strike) {
   const idle = IMG[def.key + '_idle'];
   if (!idle) return def.draw(p);
@@ -891,6 +914,7 @@ function p1Input() {
 const MUSIC = { title: 'title', select: 'title', diff: 'title', intro: 'battle', fight: 'battle', roundEnd: 'battle' };
 
 function update() {
+  if (!assetsReady()) { for (const k in pressed) pressed[k] = false; return; }
   const enter = pressed.Enter || pressed.Space, esc = pressed.Escape;
   if (pressed.KeyM) { Sound.toggle(); muteMsg = 90; }
   if (muteMsg > 0) muteMsg--;
@@ -1007,6 +1031,7 @@ function dinoCard(d, x, y, w, h, sel, i) {
 }
 
 function render() {
+  if (!assetsReady()) { drawLoading(); return; }
   ctx.save();
   if (scene === 'title') {
     drawBG(0.15);
