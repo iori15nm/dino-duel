@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이미지 손질 도구</title>
+<style>
+body{margin:0;padding:16px;background:#2a3a2a;color:#fff;font-family:'Malgun Gothic',sans-serif}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0}
+canvas{max-width:48%;background:#7aa36a}
+</style>
+</head>
+<body>
+<p>AI로 만든 공룡 이미지의 가짜 체크무늬 배경을 지우고, 기본/공격 2장을 같은 크기로 잘라 assets/ 에 PNG로 저장합니다.<br>
+사용법: assets/raw/ 에 <b>키_idle.webp</b>, <b>키_attack.webp</b> 를 넣고 tools/cutout.html?keys=trex,trice 처럼 엽니다. (개발 서버에서만 저장됨)</p>
+<div id="log"></div>
+<div id="out"></div>
+<script>
+const logEl = document.getElementById('log'), out = document.getElementById('out');
+const log = s => { logEl.innerHTML += s + '<br>'; };
+const lerp = (a, b, t) => a + (b - a) * t;
+const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('불러오기 실패: ' + src)); i.src = src + '?v=' + Date.now(); });
+const save = (name, canvas, type = 'image/png', q) => new Promise(ok => canvas.toBlob(b => fetch('/__save/' + name, { method: 'PUT', body: b }).then(r => r.text()).then(ok), type, q));
+
+// 체크무늬(채도 낮은 어두운 회색) 중 가장자리와 이어진 부분만 투명하게
+function cutout(img) {
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const W = c.width, H = c.height, d = g.getImageData(0, 0, W, H), a = d.data;
+  const sat = k => { const i = k * 4; return Math.max(a[i], a[i + 1], a[i + 2]) - Math.min(a[i], a[i + 1], a[i + 2]); };
+  const lum = k => { const i = k * 4; return Math.max(a[i], a[i + 1], a[i + 2]); };
+  // 왼쪽 위 모서리에서 체크무늬의 두 회색 값을 직접 재서, 그 두 색에 가까운 무채색만 배경으로 본다
+  const vals = []; for (let y = 0; y < 120; y++) for (let x = 0; x < 120; x++) { const k = y * W + x; if (sat(k) <= 6) vals.push(lum(k)); }
+  vals.sort((p, q) => p - q); const v1 = vals[Math.floor(vals.length * 0.25)], v2 = vals[Math.floor(vals.length * 0.75)];
+  log(`체크무늬 회색: ${v1}, ${v2}`);
+  // 어두운 체크무늬: 어두운 무채색 / 밝은 체크무늬: 밝은 무채색 (공룡의 회색 피부는 그보다 어두워서 남는다)
+  const light = v1 > 150;
+  const seeds = [];
+  let isBg = k => light ? (sat(k) <= 14 && lum(k) >= v1 - 35) : (sat(k) <= 8 && lum(k) <= Math.max(130, v2 + 30));
+  // 체크 칸 크기·위치를 재서, 각 위치에 "와야 할 체크 색"과 같은 픽셀만 배경으로 본다 (회색 공룡 보호)
+  const edges = (get, n) => { const t = []; for (let i = 1; i < n; i++) if (Math.abs(get(i) - get(i - 1)) > 25) t.push(i); return t; };
+  const tx = edges(x => lum(4 * W + x), Math.min(W, 600)), ty = edges(y => lum(y * W + 4), Math.min(H, 600));
+  const gaps = t => t.slice(1).map((v, i) => v - t[i]).filter(g => g > 6).sort((p, q) => p - q);
+  const gx = gaps(tx), gy = gaps(ty), cs = gx.length > 4 ? gx[gx.length >> 1] : 0;
+  if (!light && cs >= 8 && gy.length > 4 && Math.abs(gy[gy.length >> 1] - cs) <= 2) {
+    // 칸 크기는 소수일 수 있어 전체 구간으로 정밀하게 다시 잰다
+    const fx = (tx[tx.length - 1] - tx[0]) / Math.round((tx[tx.length - 1] - tx[0]) / cs), fy = (ty[ty.length - 1] - ty[0]) / Math.round((ty[ty.length - 1] - ty[0]) / cs);
+    const px = tx[0] % fx, py = ty[0] % fy, nI = Math.ceil(W / fx) + 2, nJ = Math.ceil(H / fy) + 2;
+    const cellOf = (x, y) => [Math.floor((x - px) / fx) + 1, Math.floor((y - py) / fy) + 1];
+    // 칸마다 평균 밝기·흔들림·채도를 재서, 고르고 무채색이며 이웃 칸과 명암이 엇갈리는 칸 = 체크 칸
+    const mean = new Float32Array(nI * nJ), uni = new Uint8Array(nI * nJ), bgc = new Uint8Array(nI * nJ);
+    for (let j = 0; j < nJ; j++) for (let i = 0; i < nI; i++) {
+      const x0 = Math.ceil(px + (i - 1) * fx + 3), x1 = Math.floor(px + i * fx - 3), y0 = Math.ceil(py + (j - 1) * fy + 3), y1 = Math.floor(py + j * fy - 3);
+      let n = 0, s = 0, s2 = 0, ss = 0;
+      for (let y = Math.max(0, y0); y <= Math.min(H - 1, y1); y += 2) for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x += 2) { const k = y * W + x, v = lum(k); n++; s += v; s2 += v * v; ss += sat(k); }
+      if (n < 6) continue;
+      const m = s / n; mean[j * nI + i] = m; uni[j * nI + i] = Math.sqrt(Math.max(0, s2 / n - m * m)) < 7 && ss / n < 10 ? 1 : 0;
+    }
+    for (let j = 0; j < nJ; j++) for (let i = 0; i < nI; i++) {
+      const c = j * nI + i; if (!uni[c]) continue;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nI || jj >= nJ) continue; const o = jj * nI + ii; if (uni[o] && Math.abs(mean[o] - mean[c]) > 20) { bgc[c] = 1; break; } }
+    }
+    for (let j = 0; j < nJ; j++) for (let i = 0; i < nI; i++) if (bgc[j * nI + i]) { const x = Math.floor(px + (i - 0.5) * fx), y = Math.floor(py + (j - 0.5) * fy); if (x >= 0 && y >= 0 && x < W && y < H) seeds.push(y * W + x); } // 부리 사이처럼 갇힌 체크 칸도 지우기
+    const avgOf = (i, j, offs) => { let s = 0, n = 0; for (const [di, dj] of offs) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nI || jj >= nJ) continue; const o = jj * nI + ii; if (bgc[o]) { s += mean[o]; n++; } } return n ? s / n : null; };
+    const SAME = [[1, 1], [1, -1], [-1, 1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]], OPP = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const expC = (i, j) => { const c = j * nI + i; return bgc[c] ? mean[c] : avgOf(i, j, SAME); };
+    isBg = k => {
+      if (sat(k) > 12) return false;
+      const x = k % W, y = (k / W) | 0, [i, j] = cellOf(x, y), e = expC(i, j), v = lum(k);
+      if (e == null) return false;
+      if (Math.abs(v - e) <= 14) return true;
+      const lx = (x - px) - (i - 1) * fx, ly = (y - py) - (j - 1) * fy;
+      if (Math.min(lx, ly, fx - lx, fy - ly) < 2.5) { const o = avgOf(i, j, OPP) ?? e; return v >= Math.min(e, o) - 10 && v <= Math.max(e, o) + 10; }
+      return false;
+    };
+    log(`체크 칸 크기 ${cs}px 감지 → 정밀 모드`);
+  }
+  const seen = new Uint8Array(W * H), st = [];
+  for (let x = 0; x < W; x++) st.push(x, (H - 1) * W + x);
+  for (let y = 0; y < H; y++) st.push(y * W, y * W + W - 1);
+  st.push(...seeds);
+  while (st.length) {
+    const k = st.pop(); if (seen[k]) continue;
+    if (!isBg(k)) { seen[k] = 2; continue; }
+    seen[k] = 1; a[k * 4 + 3] = 0;
+    const x = k % W, y = (k / W) | 0;
+    if (x > 0) st.push(k - 1); if (x < W - 1) st.push(k + 1); if (y > 0) st.push(k - W); if (y < H - 1) st.push(k + W);
+  }
+  // 경계 부드럽게: 배경과 닿은 픽셀은 반투명, 회색에 가까울수록 더 투명
+  for (let k = 0; k < W * H; k++) if (seen[k] === 2) a[k * 4 + 3] = sat(k) < 24 ? 110 : 210;
+  // 오른쪽 아래 워터마크 영역 비우기
+  for (let y = Math.floor(H * 0.86); y < H; y++) for (let x = Math.floor(W * 0.91); x < W; x++) a[(y * W + x) * 4 + 3] = 0;
+  // 가장 큰 덩어리(공룡)만 남기고 흩어진 잔여물(줄 자국 등)은 지우기
+  const lab = new Int32Array(W * H), sizes = [0]; let best = 0;
+  for (let s0 = 0; s0 < W * H; s0++) {
+    if (lab[s0] || a[s0 * 4 + 3] <= 40) continue;
+    const id = sizes.length; let n = 0; const q = [s0]; lab[s0] = id;
+    while (q.length) {
+      const k = q.pop(); n++; const x = k % W, y = (k / W) | 0;
+      for (const m of [x > 0 ? k - 1 : -1, x < W - 1 ? k + 1 : -1, y > 0 ? k - W : -1, y < H - 1 ? k + W : -1])
+        if (m >= 0 && !lab[m] && a[m * 4 + 3] > 40) { lab[m] = id; q.push(m); }
+    }
+    sizes.push(n); if (n > sizes[best]) best = id;
+  }
+  for (let k = 0; k < W * H; k++) if (lab[k] !== best) a[k * 4 + 3] = 0;
+  g.putImageData(d, 0, 0);
+  let x0 = W, y0 = H, x1 = 0, y1 = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (a[(y * W + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return { c, box: [x0, y0, x1, y1] };
+}
+function crop(src, box, maxW) {
+  const [x0, y0, x1, y1] = box, w = x1 - x0 + 1, h = y1 - y0 + 1, s = Math.min(1, maxW / w);
+  const c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+  c.getContext('2d').drawImage(src, x0, y0, w, h, 0, 0, c.width, c.height); return c;
+}
+
+(async () => {
+  const keys = (new URLSearchParams(location.search).get('keys') || 'trex').split(',');
+  for (const key of keys) {
+    try {
+      const [ii, ia] = await Promise.all([load(`../assets/raw/${key}_idle.webp`), load(`../assets/raw/${key}_attack.webp`)]);
+      const A = cutout(ii), B = cutout(ia);
+      const box = [Math.min(A.box[0], B.box[0]) - 4, Math.min(A.box[1], B.box[1]) - 4, Math.max(A.box[2], B.box[2]) + 4, Math.max(A.box[3], B.box[3]) + 2];
+      const ci = crop(A.c, box, 1100), ca = crop(B.c, box, 1100);
+      const row = document.createElement('div'); row.className = 'row'; row.append(ci, ca); out.append(row);
+      log(`${key}: idle ${await save(key + '_idle.png', ci)}, attack ${await save(key + '_attack.png', ca)} (${ci.width}x${ci.height})`);
+    } catch (e) { log(`${key}: ${e.message}`); }
+  }
+  const bgs = new URLSearchParams(location.search).get('bg'); // 예: ?bg=forest,lava
+  for (const name of bgs ? (bgs === '1' ? ['forest'] : bgs.split(',')) : []) {
+    const bg = await load('../assets/raw/bg_' + name + '.webp'), c = document.createElement('canvas'); c.width = bg.width; c.height = bg.height;
+    const g = c.getContext('2d'); g.drawImage(bg, 0, 0);
+    const W = c.width, H = c.height, pw = Math.round(W * 0.09), ph = Math.round(H * 0.12);
+    g.drawImage(c, W - pw * 2 - 10, H - ph, pw, ph, W - pw, H - ph, pw, ph); // 워터마크 자리를 왼쪽 옆 풍경으로 덮기
+    log('bg_' + name + ': ' + await save('bg_' + name + '.jpg', c, 'image/jpeg', 0.88));
+    c.style.maxWidth = '100%'; out.append(c);
+  }
+  log('완료');
+})();
+</script>
+</body>
+</html>

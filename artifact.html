@@ -1,0 +1,14 @@
+<title>다이노 듀얼</title>
+<style>
+/* 한 화면 게임: 검은 배경 위에 16:9 캔버스를 화면에 맞춰 배치 (단일 다크 테마) */
+:root { --bg: #000000; color-scheme: dark; }
+html, body { height: 100%; background: var(--bg); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body { display: flex; align-items: center; justify-content: center; margin: 0; }
+canvas { display: block; }
+</style>
+<canvas id="game"></canvas>
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/dinos.js"></script>
+<script src="js/touch.js"></script>
+<script src="js/game.js"></script>

@@ -1,0 +1,9 @@
+# 비밀/환경 파일 (회사 공통 규칙)
+.env
+*.pem
+*.key
+secrets/
+node_modules/
+dist/
+# AI 이미지 원본 (손질 전, 용량이 커서 로컬에만 보관)
+assets/raw/
