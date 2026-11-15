@@ -444,28 +444,29 @@ const DINOS = [
   { key: 'raptor', name: '벨로키랍토르', type: '스피드형', hp: 900, speed: 4.4, jump: 18, grav: 0.8, bw: 150, h: 165, len: 340, imgScale: 1.25, draw: drawPachy, stars: [3, 2, 5], aura: '#ffd43b',
     moves: {
       z: mv('발톱 할퀴기', 'claw', 'mid', 6, 5, 12, 270, 130, 45, 7),
-      x: mv('낫발톱 점프킥', 'ram', 'mid', 12, 9, 20, 290, 150, 90, 13, { lunge: 11 }),
+      friend: mv('친구 부르기', 'call', 'mid', 14, 10, 22, 0, 0, 42, 10, { proj: 'pack', hitText: '와앙!' }), // 친구 게이지가 차면 Z가 이 기술로 바뀜
+      x: mv('물기', 'waterbite', 'mid', 12, 8, 20, 290, 150, 88, 12, { hitText: '콱!' }),
       dz: mv('꼬리 쓸기', 'spin', 'low', 10, 6, 16, 280, 140, 55, 8),
       dx: mv('올려 차기', 'toss', 'up', 9, 7, 18, 270, 150, 75, 10, { air: true }),
       j: mv('공중 낫발톱', 'dive', 'air', 5, 10, 8, 260, 150, 65, 8, { air: true }),
-      c: mv('랩터 연속 습격', 'charge', 'mid', 16, 34, 22, 300, 200, 60, 7, { special: true, kind: 'dash', dash: 18, hits: 4, interval: 7, launch: true, fx: 'slash' }) } },
+      c: mv('랩터 스크래치', 'sickle', 'mid', 16, 30, 22, 290, 190, 58, 8, { special: true, kind: 'dash', dash: 13, hits: 4, interval: 7, launch: true, fx: 'slash' }) } },
   { key: 'giga', name: '기가노토사우루스', type: '거대형', hp: 1150, speed: 3.0, jump: 14, grav: 0.8, bw: 230, h: 240, len: 540, imgScale: 1.45, draw: drawTrex, stars: [5, 4, 2], aura: '#e8590c',
     moves: {
-      z: mv('꼬리 후려치기', 'tailsmash', 'mid', 10, 7, 17, 330, 180, 62, 13, { hitText: '후려치기!' }),
-      x: mv('칼날 이빨 물기', 'waterbite', 'mid', 16, 8, 22, 350, 150, 105, 12),
+      z: mv('기가노토 킥', 'kick', 'mid', 8, 6, 15, 310, 170, 56, 12, { hitText: '뻥!' }),
+      x: mv('다이노 헤딩', 'headbutt', 'mid', 15, 8, 22, 320, 160, 105, 15, { hitText: '헤딩!' }),
       dz: mv('낮은 꼬리 쓸기', 'spin', 'low', 11, 7, 18, 320, 160, 62, 9),
       dx: mv('올려 물기', 'upbite', 'up', 10, 7, 20, 300, 150, 80, 10, { air: true }),
       j: mv('공중 물기', 'bite', 'air', 5, 10, 8, 280, 150, 68, 8, { air: true }),
-      c: mv('기가 크러시', 'megabite', 'mid', 22, 30, 24, 340, 200, 128, 10, { special: true, kind: 'dash', dash: 14, hits: 2, interval: 12, launch: true, fx: 'bite' }) } },
+      c: mv('기가노토 토네이도', 'gigaspin', 'mid', 20, 30, 24, 0, 0, 140, 6, { special: true, kind: 'proj', proj: 'dust', dizzy: 70, fx: 'quake' }) } },
   { key: 'krono', name: '크로노사우루스', type: '바다형', hp: 1050, speed: 3.2, jump: 13, grav: 0.45, bw: 220, h: 175, hurtLow: 30, len: 480, imgScale: 1.15, imgLift: 45, draw: drawSpino, stars: [4, 3, 3], aura: '#4dabf7',
     moves: {
-      z: mv('지느러미 치기', 'wingbeat', 'mid', 8, 6, 14, 300, 170, 50, 10),
-      x: mv('거대 턱 물기', 'waterbite', 'mid', 15, 8, 22, 350, 160, 100, 11, { hitFx: 'water' }),
+      z: mv('꼬리치기', 'tailsmash', 'mid', 10, 7, 17, 320, 180, 58, 12, { hitText: '꼬리치기!' }),
+      x: mv('투명 공룡', 'vanish', 'body', 10, 4, 14, 0, 0, 0, 0, { kind: 'invis' }), // 5초 투명(무적), 끝나고 10초 기다리기
       dz: mv('꼬리 쓸기', 'spin', 'low', 11, 7, 18, 310, 150, 58, 9),
       dx: mv('솟구쳐 물기', 'upbite', 'up', 10, 7, 20, 290, 150, 80, 10, { air: true }),
       j: mv('공중 덮치기', 'dive', 'air', 5, 10, 8, 270, 160, 66, 8, { air: true }),
-      c: mv('바다의 소용돌이', 'roar', 'mid', 22, 30, 24, 0, 0, 64, 8, { special: true, kind: 'proj', proj: 'tornado', launch: true, fx: 'water' }) } },
+      c: mv('크로노 바이트', 'kronobite', 'mid', 18, 26, 26, 330, 200, 150, 10, { special: true, kind: 'grabbite', dash: 16, grabThrow: true, launch: true, fx: 'water' }) } },
 ];
 const DINO = Object.fromEntries(DINOS.map(d => [d.key, d]));
 // 강한 공격(X, ↓+X)은 힘 모으기·크게 내지르기·"쾅!" 연출을 받는다
-DINOS.forEach(d => { d.moves.x.heavy = true; d.moves.dx.heavy = true; });
+DINOS.forEach(d => { if (d.moves.x.kind !== 'invis') d.moves.x.heavy = true; d.moves.dx.heavy = true; });

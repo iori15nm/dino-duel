@@ -92,6 +92,27 @@ function drawSpBtn(b) {
     ctx.globalAlpha = 1;
   }
 }
+// 게이지가 있는 버튼 (랩터 Z 친구 부르기, 크로노 X 투명): 준비되면 빛나고, 아니면 테두리에 진행 표시
+function drawGaugeBtn(b, frac, ready, sub, col, dim) {
+  const down = TOUCH.down.has(b);
+  if (ready) {
+    const pul = Math.sin(frame * 0.2), r = b.r * (1.05 + 0.06 * pul);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(b.x, b.y, r * 0.6, b.x, b.y, r * 1.8); g.addColorStop(0, hexA(col, 0.5 + 0.2 * pul)); g.addColorStop(1, hexA(col, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, r * 1.8, 0, 7); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = hexA(col, down ? 1 : 0.9); ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
+    txt(b.label, b.x, b.y - 10, r * 0.6, '#fff', 'center', 'rgba(0,0,0,.55)', 5);
+    txt(sub, b.x, b.y + r * 0.45, 15, '#fff', 'center', 'rgba(0,0,0,.6)', 4);
+    return;
+  }
+  ctx.globalAlpha = dim ? 0.45 : 1;
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fillStyle = down ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.12)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 3; ctx.stroke();
+  txt(b.label, b.x, b.y - 9, b.r * 0.62, 'rgba(255,255,255,.9)', 'center', 'rgba(0,0,0,.35)', 4);
+  txt(sub, b.x, b.y + b.r * 0.45, 15, 'rgba(255,255,255,.8)', 'center', 'rgba(0,0,0,.4)', 3);
+  ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke(); ctx.globalAlpha = 1;
+}
 function drawTouch() {
   if (!isTouch()) return;
   const mode = touchMode(), soft = 'rgba(255,255,255,.12)', edge = 'rgba(255,255,255,.45)';
@@ -99,6 +120,8 @@ function drawTouch() {
   for (const b of BTNS[mode]) {
     if (b.k === 'Escape' && scene === 'title') continue;
     if (b.sp) { drawSpBtn(b); continue; }
+    if (mode === 'fight' && P1 && b.k === 'KeyZ' && P1.def.moves.friend) { const full = P1.friendG >= 100; drawGaugeBtn(b, P1.friendG / 100, full, full ? '친구 부르기!' : '빠른 공격', '#ffd43b', false); continue; }
+    if (mode === 'fight' && P1 && b.k === 'KeyX' && P1.def.moves.x.kind === 'invis') { const cd = P1.invisCd || 0; drawGaugeBtn(b, 1 - cd / 900, cd <= 0, P1.invis > 0 ? '투명 중!' : cd > 0 ? Math.ceil(cd / 60) + '초' : '투명 공룡', '#4dabf7', cd > 0 && !(P1.invis > 0)); continue; }
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7);
     ctx.fillStyle = TOUCH.down.has(b) ? 'rgba(255,255,255,.35)' : soft; ctx.fill();
     ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.stroke();

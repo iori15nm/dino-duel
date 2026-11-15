@@ -163,6 +163,14 @@ function spawnProj(f, opp, m) {
     projs.push({ kind: 'quake', small: true, owner: f, x0: f.x + f.facing * 110, x: f.x + f.facing * 110, vx: f.facing * 12, age: 0, life: 50, m, hit: false });
     shake = Math.max(shake, 7); rocks(f.x + f.facing * 110, GROUND, 6); dust(f.x + f.facing * 90, GROUND, 6); Sound.boom(0.4, 0.3);
     particles.push({ type: 'ring', x: f.x + f.facing * 100, y: GROUND, r: 12, life: 14, max: 14, grow: 9, col: '#e8d9b0' });
+  } else if (m.proj === 'pack') { // 친구 랩터 3마리가 화면 밖(뒤쪽)에서 우르르 달려와 덮치고 지나감
+    const sx = f.facing > 0 ? -170 : W + 170;
+    [[0, 0.82, 6], [9, 0.72, -10], [18, 0.9, 12]].forEach(([d, sc, dy], i) => projs.push({ kind: 'pack', owner: f, i, x: sx, vx: f.facing * 21, dir: f.facing, age: -d, life: 88, m, hit: false, sc, dy, last: i === 2 }));
+    Sound.roar(); popText('친구들아~!', f.x, f.y - f.def.h - 50, '#ffd43b', 42);
+    for (let i = 0; i < 2; i++) particles.push({ type: 'ring', x: f.x + f.facing * 60, y: f.y - f.def.h * 0.8, r: 20 + i * 25, life: 18, max: 18, grow: 10, col: '#ffd43b' });
+  } else if (m.proj === 'dust') { // 기가노토 토네이도: 흙먼지 회오리가 다가가 상대를 휘감아 올림
+    projs.push({ kind: 'dust', owner: f, x: f.x + f.facing * 170, vx: f.facing * 7, age: 0, life: 150, m, hit: false });
+    dust(f.x + f.facing * 170, GROUND, 14); rocks(f.x + f.facing * 170, GROUND, 6); Sound.whoosh(); Sound.boom(0.4, 0.3); shake = Math.max(shake, 10);
   } else if (m.proj === 'sonic') {
     projs.push({ kind: 'sonic', owner: f, x: f.x + f.facing * f.def.len * 0.42, y: f.y - f.def.h * 0.78, vx: f.facing * 12, dir: f.facing, age: 0, life: 80, m, hit: false });
     Sound.roar(); Sound.boom(0.3, 0.25); shake = Math.max(shake, 8); f.kb = -f.facing * 7;
@@ -204,6 +212,22 @@ function updProjs() {
         else { tgt.grab = { by: o, t: 0, m: p.m }; tgt.setState('hit'); popText('잡았다!', tgt.x, tgt.y - tgt.def.h - 40, '#d0a8ff', 38); Sound.sfx(500, 0.2, 'square', 0.08, 1.6); }
       }
       box = null;
+    } else if (p.kind === 'pack') {
+      p.x += p.vx; const d = p.owner.def; if (p.age % 4 === 0) dust(p.x - p.dir * 40, GROUND, 1);
+      if (p.age === 0) Sound.sfx(700 + p.i * 120, 0.12, 'square', 0.05, 1.6);
+      box = { x1: p.x - d.bw * p.sc / 2, x2: p.x + d.bw * p.sc / 2, y1: GROUND - d.h * p.sc, y2: GROUND };
+    } else if (p.kind === 'dust') {
+      if (!p.held) { p.x += p.vx; if (p.x < 80 || p.x > W - 80) p.vx = 0; } else if (p.age > p.life - 20) p.age = p.life - 20;
+      if (p.age % 2 === 0) dust(p.x + (R() - 0.5) * 140, GROUND - R() * 50, 1);
+      if (!p.held && !p.hit && p.age < p.life - 15 && tgt.state !== 'ko' && !tgt.grab) {
+        const hu = tgt.hurtbox();
+        if (p.x + 80 > hu.x1 && p.x - 80 < hu.x2) {
+          if (tgt.inv) { if (!p.dodge) { p.dodge = true; popText(tgt.invis > 0 ? '안 보여!' : '회피!', tgt.x, tgt.y - tgt.def.h - 30, '#9ad8ff'); } }
+          else if (tgt.shielding) { shieldBlock(p.owner, tgt, p.x, GROUND - 100); p.hit = true; p.age = p.life - 12; }
+          else { p.hit = p.held = true; tgt.grab = { by: p.owner, t: 0, m: p.m, mode: 'tornado', p }; tgt.setState('hit'); popText('휘말렸다!', tgt.x, tgt.y - tgt.def.h - 40, '#ffd8a8', 40); Sound.whoosh(); shake = Math.max(shake, 8); }
+        }
+      }
+      box = null;
     } else if (p.kind === 'sonic') {
       p.x += p.vx; if (p.x < 0 || p.x > W) p.age = p.life;
       box = { x1: p.x - 45, x2: p.x + 45, y1: p.y - 65, y2: p.y + 65 };
@@ -221,7 +245,7 @@ function updProjs() {
       if (box.x1 < hu.x2 && box.x2 > hu.x1 && box.y1 < hu.y2 && box.y2 > hu.y1) {
         p.hit = true; if (p.maxHits) { p.n++; p.hit = p.n >= p.maxHits; p.cd = 14; p.last = p.hit; } // 토네이도는 여러 번
         if (tgt.inv || (!p.m.air && !tgt.grounded)) popText('회피!', tgt.x, tgt.y - tgt.def.h - 30, '#9ad8ff');
-        else applyHit(p.owner, tgt, p.m, p.kind === 'feather' || p.kind === 'laser' ? clamp(p.x || tgt.x, hu.x1, hu.x2) : tgt.x, p.kind === 'feather' || p.kind === 'laser' ? p.y : GROUND - 80, p.kind === 'quake' || p.last || (!p.maxHits && p.kind !== 'clone'));
+        else applyHit(p.owner, tgt, p.m, p.kind === 'feather' || p.kind === 'laser' ? clamp(p.x || tgt.x, hu.x1, hu.x2) : tgt.x, p.kind === 'feather' || p.kind === 'laser' ? p.y : GROUND - 80, p.kind === 'quake' || p.last || (!p.maxHits && p.kind !== 'clone' && p.kind !== 'pack'));
       }
     }
   }
@@ -248,6 +272,25 @@ function drawProjs() {
         ctx.beginPath(); ctx.ellipse(p.x + ox, y, rx, 9, 0, 0, 7); ctx.fill(); ctx.stroke();
         ctx.strokeStyle = `rgba(255,255,255,${0.8 * fade})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.x + ox, y, rx, 9, 0, ph % 6.28, ph % 6.28 + 1.4); ctx.stroke();
       }
+      continue;
+    }
+    if (p.kind === 'pack') { // 친구 랩터: 깡총깡총 뛰며 입을 벌리고 달려감
+      const pp = basePose(frame + p.i * 13); pp.stride = 34; pp.walk = p.age * 0.55; pp.lean = 0.1; pp.jaw = 0.8; pp.hr = 0.15;
+      const hop = Math.abs(Math.sin(p.age * 0.32 + p.i)) * 30;
+      ctx.fillStyle = 'rgba(20,15,5,.25)'; ctx.beginPath(); ctx.ellipse(p.x, GROUND + 6 + p.dy, 110 * p.sc, 10, 0, 0, 7); ctx.fill();
+      ctx.save(); ctx.translate(p.x, GROUND + p.dy - hop); ctx.scale(p.sc, p.sc); drawBody(p.owner, 0, 0, p.dir, false, pp, 'atk', 0); ctx.restore();
+      continue;
+    }
+    if (p.kind === 'dust') { // 흙먼지 토네이도
+      const fade = Math.min(1, (p.life - p.age) / 12, p.age / 8);
+      for (let i = 0; i < 14; i++) {
+        const y = GROUND - i * 24, rx = 26 + i * 10, ph = p.age * 0.45 + i * 0.5, ox = Math.sin(ph) * 10;
+        ctx.strokeStyle = 'rgba(175,130,80,' + 0.85 * fade + ')'; ctx.lineWidth = 7; ctx.fillStyle = 'rgba(130,95,55,' + 0.38 * fade + ')';
+        ctx.beginPath(); ctx.ellipse(p.x + ox, y, rx, 10, 0, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,244,220,' + 0.8 * fade + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.x + ox, y, rx, 10, 0, ph % 6.28, ph % 6.28 + 1.4); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(110,80,50,' + 0.9 * fade + ')';
+      for (let j = 0; j < 10; j++) { const an = p.age * 0.3 + j * 0.9, r = 40 + j * 12; ctx.fillRect(p.x + Math.cos(an) * r, GROUND - 30 - j * 30 + Math.sin(an) * 8, 9, 7); }
       continue;
     }
     if (p.kind === 'clone') { // 반투명 보라 그림자 분신
@@ -354,15 +397,15 @@ function drawHazards(front) {
 
 // ===== 파이터 =====
 class Fighter {
-  constructor(def, isCPU, diff) { Object.assign(this, { def, isCPU, diff, wins: 0, sp: 0, walkPh: 0 }); }
+  constructor(def, isCPU, diff) { Object.assign(this, { def, isCPU, diff, wins: 0, sp: 0, walkPh: 0, friendG: 0 }); }
   reset(x, facing) {
-    Object.assign(this, { grab: null, dizzy: 0, poison: 0, x, y: GROUND, vx: 0, vy: 0, kb: 0, facing, hp: this.def.hp, dispHp: this.def.hp, state: 'idle', st: 0, move: null, flash: 0, guarding: false, crouch: false, trail: [], target: x });
+    Object.assign(this, { grab: null, holding: false, invis: 0, invisCd: 0, dizzy: 0, poison: 0, x, y: GROUND, vx: 0, vy: 0, kb: 0, facing, hp: this.def.hp, dispHp: this.def.hp, state: 'idle', st: 0, move: null, flash: 0, guarding: false, crouch: false, trail: [], target: x });
     this.setState('idle');
   }
   get grounded() { return this.y >= GROUND - 40; }
   get onGround() { return this.y >= GROUND; }
   get shielding() { const m = this.move; return this.state === 'atk' && m.kind === 'shield' && this.st > m.startup && this.st <= m.startup + m.active; }
-  get inv() { return (this.state === 'dash' && this.st <= 13) || (this.state === 'special' && (this.st <= this.move.startup || this.y < GROUND - 300)); }
+  get inv() { return this.invis > 0 || (this.state === 'dash' && this.st <= 13) || (this.state === 'special' && (this.st <= this.move.startup || this.y < GROUND - 300)); }
   setState(s, move) { this.state = s; this.st = 0; this.move = move || null; this.hitCount = 0; this.lastHit = -99; this.dodgeShown = false; }
   update(inp, opp) {
     this.st++; if (this.flash > 0) this.flash--; if (this.shieldFlash > 0) this.shieldFlash--;
@@ -371,6 +414,11 @@ class Fighter {
       this.poison--; if (this.poison % 30 === 0) { this.hp = Math.max(1, this.hp - 6); popText('6', this.x, this.y - this.def.h - 10, '#8ce99a', 24); }
       if (frame % 6 === 0) particles.push({ type: 'aura', x: this.x + (R() - 0.5) * this.def.len * 0.5, y: this.y - R() * this.def.h, vx: 0, vy: -1.5, life: 24, max: 24, r: 3, col: 'rgba(120,230,90,.9)' });
     }
+    if (this.invis > 0) { // 투명 공룡: 물방울만 살짝 보임, 끝날 땐 깜빡
+      this.invis--; if (frame % 5 === 0) particles.push({ type: 'aura', x: this.x + (R() - 0.5) * this.def.len * 0.6, y: this.y - R() * this.def.h, vx: 0, vy: -1.2, life: 22, max: 22, r: 3 + R() * 3, col: 'rgba(190,235,255,.8)' });
+      if (this.invis === 0) { popText('짠!', this.x, this.y - this.def.h - 40, '#9ad8ff', 40); Sound.splash(); drops(this.x, this.y - this.def.h * 0.5, 14); }
+    }
+    if (this.invisCd > 0) this.invisCd--;
     if (this.grab) { this.updGrab(); return; }
     const back = this.facing > 0 ? inp.left : inp.right, fwd = this.facing > 0 ? inp.right : inp.left, backTap = this.facing > 0 ? inp.leftP : inp.rightP;
     this.guarding = false; this.crouch = false;
@@ -398,7 +446,9 @@ class Fighter {
   }
   // 미스터리 스트링에 잡힘: 끌려가 들어 올려졌다가 쿵! 내리꽂힘
   updGrab() {
-    const g = this.grab, by = g.by; g.t++; this.state = 'hit'; this.st = 1; this.vx = this.vy = this.kb = 0;
+    const g = this.grab, by = g.by; g.t++; this.state = 'hit'; this.st = 1; this.vx = this.vy = this.kb = 0; this.guarding = false;
+    if (g.mode === 'bite') return this.grabBite(g, by);
+    if (g.mode === 'tornado') return this.grabTornado(g, by);
     const tx = by.x + by.facing * (by.def.len * 0.45 + this.def.len * 0.3);
     this.x = clamp(lerp(this.x, tx, 0.12), XMIN, XMAX); this.y = GROUND - Math.sin(Math.min(1, g.t / 36) * Math.PI) * 160;
     if (g.t >= 36) {
@@ -408,6 +458,36 @@ class Fighter {
       popText(String(Math.round(dmg)), this.x, GROUND - this.def.h - 20, '#fff', 36); popText('쿵!', this.x, GROUND - this.def.h - 70, '#d0a8ff', 54);
       if (this.hp <= 0) { this.setState('ko'); slow = 50; }
     }
+  }
+  // 크로노 바이트: 입에 물려 들어 올려져 흔들리다가 → 앞으로 휙 던져져 쿵!
+  grabBite(g, by) {
+    if (g.t <= 34) {
+      if (by.state !== 'special') g.t = 34;
+      const jx = by.x + by.facing * (by.def.len * 0.42 + this.def.bw * 0.3);
+      this.x = clamp(lerp(this.x, jx + Math.sin(g.t * 0.9) * 22, 0.4), XMIN, XMAX); this.y = GROUND - Math.min(1, g.t / 10) * 120;
+      if (g.t % 6 === 0) { drops(this.x, this.y - this.def.h * 0.5, 6); Sound.sfx(200, 0.08, 'square', 0.08, 0.6); shake = Math.max(shake, 5); }
+      if (g.t === 34) {
+        g.vx = by.facing * 15; g.vy = -19; by.holding = false; if (by.state === 'special') by.st = by.move.startup + by.move.active;
+        popText('던지기!', this.x, this.y - this.def.h - 40, '#4dabf7', 46); Sound.whoosh(); Sound.splash();
+      }
+      return;
+    }
+    this.x += g.vx; if (this.x <= XMIN || this.x >= XMAX) g.vx = 0; this.x = clamp(this.x, XMIN, XMAX);
+    g.vy += 0.9; this.y += g.vy;
+    if (this.y >= GROUND) { this.y = GROUND; this.grab = null; rocks(this.x, GROUND, 10); dust(this.x, GROUND, 14); drops(this.x, GROUND - 40, 20); applyHit(by, this, g.m, this.x, GROUND - 70, true); }
+  }
+  // 기가노토 토네이도: 회오리 안에서 빙글빙글 올라가 어지러워하다가 → 뚝 떨어짐
+  grabTornado(g, by) {
+    const p = g.p; this.dizzy = 2;
+    if (g.t <= 70) {
+      this.x = clamp(lerp(this.x, p.x, 0.2), XMIN, XMAX); this.y = GROUND - Math.min(1, g.t / 45) * 250 + Math.sin(g.t * 0.3) * 14;
+      if (g.t % 12 === 0) Sound.sfx(300 + g.t * 4, 0.12, 'triangle', 0.06, 1.4);
+      if (g.t === 40) popText('어질어질~', this.x, this.y - this.def.h - 30, '#ffe066', 36);
+      return;
+    }
+    if (g.t === 71) { g.vy = 0; p.held = false; p.age = Math.max(p.age, p.life - 12); popText('떨어진다!', this.x, this.y - this.def.h - 30, '#ffd8a8', 38); }
+    g.vy += 1.1; this.y += g.vy;
+    if (this.y >= GROUND) { this.y = GROUND; this.grab = null; this.dizzy = 0; rocks(this.x, GROUND, 12); dust(this.x, GROUND, 16); applyHit(by, this, g.m, this.x, GROUND - 60, true); }
   }
   updFree(inp, back, fwd, backTap) {
     if (!this.onGround) {
@@ -422,7 +502,13 @@ class Fighter {
     }
     if (inp.c && this.sp < 100 && !this.isCPU && frame - (this.spWarn || -99) > 30) { this.spWarn = frame; popText('게이지가 아직 부족해요', this.x, this.y - this.def.h - 40, '#9ad8ff', 24); Sound.sfx(220, 0.1, 'triangle', 0.06); }
     if (inp.c && this.sp >= 100) { this.sp = 0; this.setState('special', this.def.moves.c); startCutin(this); return; }
-    if (inp.z || inp.x) { this.setState('atk', this.def.moves[inp.down ? (inp.z ? 'dz' : 'dx') : (inp.z ? 'z' : 'x')]); if (this.move.heavy) Sound.sfx(110, 0.35, 'sawtooth', 0.1, 0.6); Sound.whoosh(); return; }
+    if (inp.x && !inp.down && this.def.moves.x.kind === 'invis' && this.invisCd > 0) { // 투명은 다시 쓰기까지 기다려야 함
+      if (!this.isCPU && frame - (this.spWarn || -99) > 30) { this.spWarn = frame; popText('투명은 ' + Math.ceil(this.invisCd / 60) + '초 뒤에 다시!', this.x, this.y - this.def.h - 40, '#9ad8ff', 24); Sound.sfx(220, 0.1, 'triangle', 0.06); }
+      return;
+    }
+    if (inp.z || inp.x) { let k = inp.down ? (inp.z ? 'dz' : 'dx') : (inp.z ? 'z' : 'x');
+      if (k === 'z' && this.def.moves.friend && this.friendG >= 100) { k = 'friend'; this.friendG = 0; } // 친구 게이지가 가득 → Z = 친구 부르기
+      this.setState('atk', this.def.moves[k]); if (this.move.heavy) Sound.sfx(110, 0.35, 'sawtooth', 0.1, 0.6); Sound.whoosh(); return; }
     // 같은 방향을 빠르게 두 번 누르면 대시 (그 방향으로 쌩 이동, 잠깐 무적)
     const tapDir = inp.dash || (inp.leftP ? -1 : inp.rightP ? 1 : 0);
     if (tapDir) {
@@ -438,9 +524,20 @@ class Fighter {
   updMove(opp) {
     const m = this.move, s = this.st, a = m.startup, b = a + m.active, act = s > a && s <= b;
     if (this.state === 'atk') { if (m.lunge && act) this.vx = this.facing * m.lunge; else if (this.onGround) this.vx *= 0.7; if (m.proj && (m.stompAt ? m.stompAt.includes(s - a) : s === a)) spawnProj(this, opp, m);
+      if (m.anim === 'kick' && s === a + 1) { slashFx(this.x + this.facing * 210, this.y - 70, '#ffe8cc', this.facing < 0); dust(this.x, GROUND, 4); Sound.sfx(170, 0.18, 'sawtooth', 0.08, 0.5); }
+      if (m.anim === 'headbutt' && s === a + 1) { particles.push({ type: 'ring', x: this.x + this.facing * this.def.len * 0.45, y: this.y - this.def.h * 0.7, r: 15, life: 14, max: 14, grow: 10, col: '#ffd8a8' }); Sound.boom(0.3, 0.2); }
+      if (m.kind === 'invis' && s === a) {
+        this.invis = 300; this.invisCd = 900; Sound.splash(); Sound.sfx(1200, 0.4, 'sine', 0.08, 0.3); drops(this.x, this.y - this.def.h * 0.5, 24);
+        for (let i = 0; i < 2; i++) particles.push({ type: 'ring', x: this.x, y: this.y - this.def.h * 0.5, r: 30 + i * 30, life: 20, max: 20, grow: 12, col: '#bfe9ff' });
+        popText('투명 공룡!', this.x, this.y - this.def.h - 50, '#9ad8ff', 44);
+      }
       if (m.anim === 'tailsmash' && s === a + 1) { slashFx(this.x + this.facing * 150, this.y - 95, '#ffffff', this.facing < 0); Sound.sfx(180, 0.2, 'sawtooth', 0.08, 0.5); } }
     else switch (m.kind) {
       case 'dash': this.vx = act ? m.dash * this.facing : this.vx * 0.8; if (act && s % 2 === 0) { dust(this.x - this.facing * 80, GROUND, 2); streak(this.x - this.facing * 100, this.y - R() * this.def.h, this.facing); } break;
+      case 'grabbite': // 물고 있는 동안은 멈춰서 기술 시간이 흐르지 않음
+        if (this.holding) { this.vx = 0; this.st = a + 1; }
+        else { this.vx = act ? m.dash * this.facing : this.vx * 0.8; if (act && s % 2 === 0) { drops(this.x - this.facing * 80, GROUND - 20, 3); streak(this.x - this.facing * 100, this.y - R() * this.def.h, this.facing); } }
+        break;
       case 'multi': this.vx = act ? (m.lunge || 0) * this.facing : 0; break;
       case 'proj': this.vx = 0; if (s === a) spawnProj(this, opp, m); break;
       case 'leap':
@@ -456,6 +553,8 @@ class Fighter {
     }
     if (this.state === 'special' && s === 1) { particles.push({ type: 'pillar', x: this.x, life: 34, max: 34, col: this.def.aura }); for (let i = 0; i < 2; i++) particles.push({ type: 'ring', x: this.x, y: this.y - this.def.h * 0.5, r: 30 + i * 30, life: 22, max: 22, grow: 12, col: this.def.aura }); shake = Math.max(shake, 10); }
     if (this.state === 'special' && m.anim === 'hornattack' && s <= a && s % 5 === 0) { dust(this.x - this.facing * 70, GROUND, 3); if (s % 10 === 0) Sound.sfx(90, 0.12, 'sawtooth', 0.06, 0.7); }
+    if (this.state === 'special' && m.anim === 'sickle' && act && (s - a) % 7 === 3) { slashFx(this.x + this.facing * 170, this.y - 60, '#ffd43b', this.facing < 0); Sound.sfx(900, 0.08, 'sawtooth', 0.06, 0.5); }
+    if (this.state === 'special' && m.anim === 'gigaspin' && s % 3 === 0) { dust(this.x + (R() - 0.5) * 220, GROUND, 2); if (s % 9 === 0) Sound.whoosh(); }
     if (this.state === 'special' && m.fx === 'roar' && s === 2) { for (let i = 0; i < 3; i++) particles.push({ type: 'ring', x: this.x + this.facing * 200, y: this.y - 160, r: 20 + i * 30, life: 24, max: 24, grow: 12, col: this.def.aura }); Sound.roar(); }
     if (s >= b + m.recovery) this.setState(this.onGround ? 'idle' : 'jump');
   }
@@ -480,21 +579,30 @@ class Fighter {
     const z = { high: [y - h - 30, y - h * 0.55], mid: [y - h - 10, y - 25], low: [y - 75, y + 5], up: [y - h - 170, y - h * 0.4], air: [y - h - 10, y + 80] }[m.zone];
     return { x1: Math.min(a, b), x2: Math.max(a, b), y1: z[0], y2: z[1] };
   }
-  striking() { const m = this.move; return (this.state === 'atk' || this.state === 'special') && m.kind !== 'proj' && m.kind !== 'shield' && !m.proj && this.st > m.startup && this.st <= m.startup + m.active; }
+  striking() { const m = this.move; return (this.state === 'atk' || this.state === 'special') && m.kind !== 'proj' && m.kind !== 'shield' && m.kind !== 'invis' && !m.proj && this.st > m.startup && this.st <= m.startup + m.active; }
 }
 
 // ===== 맞히기 =====
 function tryHit(a, d) {
-  if (!a.striking() || d.state === 'ko') return;
+  if (!a.striking() || d.state === 'ko' || d.grab) return;
   const m = a.move, hits = m.hits || 1;
   if (a.hitCount >= hits || a.st - a.lastHit < (m.interval || 0)) return;
   const hb = a.hitbox(), hu = d.hurtbox();
   if (!(hb.x1 < hu.x2 && hb.x2 > hu.x1 && hb.y1 < hu.y2 && hb.y2 > hu.y1)) return;
   if (d.inv || (!m.air && !d.grounded)) {
-    if (!a.dodgeShown) { a.dodgeShown = true; popText('회피!', d.x, d.y - d.def.h - 30, '#9ad8ff'); Sound.sfx(900, 0.1, 'triangle', 0.1, 1.5); }
+    if (!a.dodgeShown) { a.dodgeShown = true; popText(d.invis > 0 ? '안 보여!' : '회피!', d.x, d.y - d.def.h - 30, '#9ad8ff'); Sound.sfx(900, 0.1, 'triangle', 0.1, 1.5); }
     return;
   }
   a.hitCount++; a.lastHit = a.st;
+  if (m.grabThrow) { // 크로노 바이트: 콱 물어서 붙잡기 (가드로는 못 막음, 쉴드 프릴은 막음)
+    a.hitCount = hits;
+    if (d.shielding) { shieldBlock(a, d, d.x, d.y - d.def.h * 0.5); return; }
+    d.grab = { by: a, t: 0, m, mode: 'bite' }; d.setState('hit'); d.guarding = false; a.holding = true; hitstop = 8; shake = 12;
+    const bx = a.x + a.facing * a.def.len * 0.45, byy = a.y - a.def.h * 0.5;
+    particles.push({ type: 'bite', x: bx, y: byy, life: 18, max: 18 }); burst(bx, byy, true, '#4dabf7'); drops(bx, byy, 16);
+    popText('콱!', d.x, d.y - d.def.h - 40, '#4dabf7', 54); Sound.sfx(150, 0.2, 'square', 0.15, 0.5); Sound.splash();
+    return;
+  }
   applyHit(a, d, m, (Math.max(hb.x1, hu.x1) + Math.min(hb.x2, hu.x2)) / 2, (Math.max(hb.y1, hu.y1) + Math.min(hb.y2, hu.y2)) / 2, a.hitCount >= hits);
 }
 function shieldBlock(a, d, hx, hy) {
@@ -517,6 +625,10 @@ function applyHit(a, d, m, hx, hy, last) {
     if (m.dizzy && !(d.dizzy > 0)) { d.dizzy = m.dizzy; popText('어질어질~', d.x, d.y - d.def.h - 60, '#ffe066', 30); }
     if (m.launch && last) { d.vy = -11; d.y -= 1; }
     d.sp = Math.min(100, d.sp + 7); if (!m.special) a.sp = Math.min(100, a.sp + 12);
+    if (a.def.moves.friend && !m.special && m !== a.def.moves.friend && a.friendG < 100) { // 랩터 친구 게이지: 5번 맞히면 가득
+      a.friendG = Math.min(100, a.friendG + 20);
+      if (a.friendG >= 100) { popText('친구 부르기 준비!', a.x, a.y - a.def.h - 60, '#ffd43b', 32); Sound.sfx(880, 0.2, 'triangle', 0.1, 1.5); }
+    }
     popText(String(Math.round(dmg)), hx, hy - 30, m.special ? '#ffd43b' : '#fff', m.special ? 44 : 32);
     Sound.sfx(150, 0.18, 'square', 0.2, 0.4); Sound.sfx(80, 0.25, 'sawtooth', 0.1, 0.5);
     if (m.special) {
@@ -541,13 +653,13 @@ function applyHit(a, d, m, hx, hy, last) {
         burst(hx, hy, true, '#ffb347'); burst(hx, hy, true, '#ffffff'); dust(d.x, GROUND, 8);
         particles.push({ type: 'ring', x: hx, y: hy, r: 20, life: 20, max: 20, grow: 14, col: '#ff922b' });
         hitstop = 13; shake = 15; cam = { x: hx, y: hy, t: 12 }; Sound.boom(0.5, 0.35);
-        popText('쾅!', hx, hy - 75, '#ff922b', 58); if (claw) slashFx(hx, hy, '#ffd43b', false);
+        popText(m.hitText || '쾅!', hx, hy - 75, '#ff922b', 58); if (claw) slashFx(hx, hy, '#ffd43b', false);
       } else if (m.anim === 'tailsmash') { // 꼬리치기: 묵직한 타격 + 반동
         burst(hx, hy, true, '#ffd43b'); dust(d.x, GROUND, 6); particles.push({ type: 'ring', x: hx, y: hy, r: 14, life: 16, max: 16, grow: 11, col: '#ffffff' });
         hitstop = 9; shake = 10; a.kb = -a.facing * 6; popText(m.hitText || '스매싱!', hx, hy - 70, '#ffd43b', 42); Sound.boom(0.35, 0.25);
       } else { // 빠른 공격: 작은 불꽃 + 짧은 멈춤
         burst(hx, hy, false, '#fff2a8'); burst(hx, hy, false, '#ffffff'); particles.push({ type: 'ring', x: hx, y: hy, r: 10, life: 12, max: 12, grow: 8, col: '#ffffff' });
-        hitstop = 6; shake = 6; popText('탁!', hx, hy - 60, '#fff2a8', 34);
+        hitstop = 6; shake = 6; popText(m.hitText || '탁!', hx, hy - 60, '#fff2a8', 34);
         if (claw) slashFx(hx, hy, '#fff2a8', false);
       }
     }
@@ -563,6 +675,10 @@ class AI {
     const dx = opp.x - f.x, dist = Math.abs(dx), toward = dx > 0 ? 'right' : 'left', away = dx > 0 ? 'left' : 'right';
     if (this.airAtk && f.onGround && f.state !== 'jump') this.airAtk = false;
     if (this.airAtk) { if (dist < 360 && f.vy > -6) { inp.z = true; this.airAtk = false; } return inp; }
+    if (opp.invis > 0) { // 투명 공룡을 못 찾아 이리저리 헤맴
+      if (--this.cd <= 0 || !this.wx) { this.cd = 25 + Math.floor(R() * 40); this.wx = R() < 0.5 ? 'left' : 'right'; if (R() < 0.3) inp.z = true; }
+      inp[this.wx] = true; return inp;
+    }
     if (this.hold > 0) { this.hold--; if (this.plan) inp[this.plan] = true; return inp; }
     const hz = hazards.find(h => h.t < HZ_WARN - 12 && Math.abs(h.x - f.x) < HZ_R + 20);
     if (hz && this.dodgedHz !== hz && R() < d.dodge + 0.25) { this.dodgedHz = hz; this.plan = hz.x > f.x ? 'left' : 'right'; this.hold = 24; inp[this.plan] = true; return inp; }
@@ -582,7 +698,7 @@ class AI {
     if (!opp.grounded && dist < range + 40 && R() < d.agg) { inp.down = true; inp.x = true; return inp; }
     if (dist > range) { this.walk = 't'; inp[toward] = true; if (R() < 0.12 * d.agg) { inp.up = true; this.airAtk = true; } return inp; }
     const r = R();
-    if (r < d.agg) { const k = ['z', 'z', 'x', 'dz', 'x'][Math.floor(R() * 5)]; if (k === 'dz') { inp.down = true; inp.z = true; } else inp[k] = true; this.cd = Math.ceil(d.react / 2); }
+    if (r < d.agg) { let k = ['z', 'z', 'x', 'dz', 'x'][Math.floor(R() * 5)]; if (k === 'x' && f.def.moves.x.kind === 'invis' && f.invisCd > 0) k = 'z'; if (k === 'dz') { inp.down = true; inp.z = true; } else inp[k] = true; this.cd = Math.ceil(d.react / 2); }
     else if (r < d.agg + 0.15) this.walk = 'a';
     return inp;
   }
@@ -712,6 +828,46 @@ function animPose(p, m, s, f) {
         p.jaw = s <= b ? 1 : rec; p.hr = -0.3 * w; p.lean = -0.16 * w; p.lunge = -34 * w; p.sx2 = 1 - 0.09 * w; p.sy2 = 1 + 0.07 * w; }
       break;
     }
+    case 'call': { p.custom = true; // 고개를 쳐들고 크게 울부짖어 친구들을 부름
+      if (s <= a) { p.jaw = wind; p.hr = -0.45 * wind; p.lean = -0.15 * wind; p.sy2 = 1 + 0.06 * wind; p.lunge = -8 * wind; }
+      else { const t = (s - a) / (m.active + m.recovery), w = Math.exp(-4 * t) * Math.cos(t * 14); p.jaw = s <= b ? 1 : rec; p.hr = -0.45 * rec; p.lean = -0.15 * rec + 0.05 * w; p.sx2 = 1 + 0.06 * w; p.sy2 = 1 - 0.05 * w; }
+      break;
+    }
+    case 'sickle': { p.custom = true; // 낫발톱을 치켜들고 → 콩콩 뛰어오르며 발톱으로 연속 할퀴기
+      if (s <= a) { p.lean = -0.18 * wind; p.sy2 = 1 - 0.1 * wind; p.sx2 = 1 + 0.05 * wind; p.lunge = -12 * wind; p.hr = -0.15 * wind; }
+      else if (s <= b) { const q = ((s - a) % 7) / 7; p.lift = Math.sin(q * Math.PI) * 70; p.lean = -0.3 + 0.25 * Math.sin(q * Math.PI); p.lunge = 20; p.sx2 = 1.08; p.sy2 = 0.95; p.stride = 0; }
+      else { const t = (s - b) / m.recovery, w = Math.exp(-4 * t) * Math.cos(t * 13); p.lunge = 20 * w; p.sx2 = 1 + 0.08 * w; p.sy2 = 1 - 0.08 * w; }
+      break;
+    }
+    case 'vanish': { p.custom = true; // 몸을 움츠렸다가 출렁 → 투명
+      if (s <= a) { p.sy2 = 1 - 0.1 * wind; p.sx2 = 1 + 0.08 * wind; }
+      else { const t = (s - a) / (m.active + m.recovery), w = Math.exp(-4 * t) * Math.cos(t * 14); p.sx2 = 1 - 0.08 * w; p.sy2 = 1 + 0.1 * w; }
+      break;
+    }
+    case 'kronobite': { p.custom = true; // 입 크게 벌리고 돌진 → 콱 물고 좌우로 흔들기 → 휙 던지기
+      if (f.holding) { p.jaw = 0.1; p.lunge = 30; p.hr = Math.sin(frame * 0.9) * 0.25; p.lean = Math.sin(frame * 0.9) * 0.06; }
+      else if (s <= a) { p.jaw = wind; p.hr = -0.25 * wind; p.lunge = -16 * wind; p.sy2 = 1 + 0.05 * wind; }
+      else if (s <= b) { p.jaw = 1; p.lunge = 30; p.sx2 = 1.15; p.sy2 = 0.9; }
+      else { const t = (s - b) / m.recovery, w = Math.exp(-4 * t) * Math.cos(t * 13); p.jaw = 0.1 * rec; p.hr = -0.4 * rec; p.lunge = 30 * w; p.sx2 = 1 + 0.1 * w; p.sy2 = 1 - 0.08 * w; }
+      break;
+    }
+    case 'kick': { p.custom = true; // 몸을 뒤로 젖히고 살짝 뛰어 발로 뻥!
+      if (s <= a) { p.lean = -0.2 * wind; p.lunge = -12 * wind; p.sy2 = 1 + 0.05 * wind; p.sx2 = 1 - 0.04 * wind; p.lift = 10 * wind; }
+      else if (s <= b) { p.lean = -0.28; p.lunge = 38; p.lift = 24; p.sx2 = 1.12; p.sy2 = 0.94; p.hr = -0.15; }
+      else { const t = (s - b) / m.recovery, w = Math.exp(-4 * t) * Math.cos(t * 13); p.lean = -0.28 * rec; p.lunge = 38 * w; p.lift = 24 * rec; p.sx2 = 1 + 0.1 * w; p.sy2 = 1 - 0.07 * w; }
+      break;
+    }
+    case 'headbutt': { p.custom = true; // 고개를 뒤로 한껏 젖혔다가 머리로 쾅!
+      if (s <= a) { p.hr = -0.45 * wind; p.lean = -0.2 * wind; p.lunge = -18 * wind; p.sy2 = 1 + 0.06 * wind; }
+      else if (s <= b) { p.hr = 0.45; p.lean = 0.2; p.lunge = 50; p.sx2 = 1.14; p.sy2 = 0.9; }
+      else { const t = (s - b) / m.recovery, w = Math.exp(-4 * t) * Math.cos(t * 13); p.hr = 0.45 * rec; p.lean = 0.2 * rec; p.lunge = 50 * w; p.sx2 = 1 + 0.12 * w; p.sy2 = 1 - 0.08 * w; }
+      break;
+    }
+    case 'gigaspin': { p.custom = true; // 빙글빙글 돌며 토네이도를 만듦
+      if (s <= b) { p.spin = (s * 0.16) % 2; p.lean = 0.05; p.sy2 = 1 - 0.05 * Math.min(1, s / 10); }
+      else { const t = (s - b) / m.recovery, w = Math.exp(-4 * t) * Math.cos(t * 13); p.sx2 = 1 + 0.1 * w; p.sy2 = 1 - 0.08 * w; }
+      break;
+    }
     case 'megabite': p.chomp = true; p.jaw = s <= a ? wind : s <= b ? 0.5 + 0.5 * Math.cos((s - a) * 0.7) : rec; p.hx = 25; p.hr = 0.08; break; // 콱콱 연속 물기
     case 'leap': if (s <= m.rise) p.lean = -0.1; else if (f.vy < 0) { p.lean = -0.3; p.hr = -0.2; } else { p.lean = 0.9; p.hr = 0.3; } break;
   }
@@ -741,13 +897,15 @@ function poseOf(f) {
   else if (f.state === 'hit') { p.hx = -15; p.hr = -0.2; p.lean = -0.06; const j = Math.exp(-f.st / 5) * Math.cos(f.st * 0.9); p.elX = 1 + 0.14 * j; p.elY = 1 - 0.14 * j; }
   else if (f.guarding && f.state !== 'crouch') { const o = f === P1 ? P2 : P1; if (o.state === 'atk' || o.state === 'special') { p.hx = -12; p.hr = 0.25; p.arm = -0.3; } }
   if ((scene === 'roundEnd' || scene === 'matchEnd') && f === roundWinner && f.state === 'idle') { p.jaw = 0.5 + 0.4 * Math.sin(frame * 0.08); p.hr = -0.15; p.arm = 0.3 * Math.sin(frame * 0.08); }
+  if (f.grab && f.grab.mode === 'tornado') { p.spin = (f.grab.t * 0.18) % 2; p.lean = 0.2 * Math.sin(f.grab.t * 0.2); }
+  if (f.grab && f.grab.mode === 'bite') { if (f.grab.t > 34) p.roll = (f.grab.t - 34) * 0.3; else { p.lean = Math.sin(f.grab.t * 0.9) * 0.25; p.hr = -0.3; } }
   const lr = frame - (f.landAt || -99);
   if (lr < 14 && f.state !== 'atk' && f.state !== 'special') { const j = Math.exp(-lr / 4) * Math.cos(lr * 0.9); p.elX = (p.elX || 1) * (1 + 0.12 * j); p.elY = (p.elY || 1) * (1 - 0.15 * j); }
   if (f.state === 'special') p.big = 1.12 + 0.03 * Math.sin(frame * 0.3);
   return p;
 }
 function drawBody(f, x, y, facing, crouch, p, state, st) {
-  ctx.save(); ctx.translate(x, y);
+  ctx.save(); ctx.translate(x, y); if (p.lift) ctx.translate(0, -p.lift * SC);
   let sx = facing * SC; if (p.spin) { const c = Math.cos(p.spin * Math.PI); sx *= (c < 0 ? -1 : 1) * Math.max(0.12, Math.abs(c)); }
   if (p.lunge || p.elL) ctx.translate(facing * ((p.lunge || 0) + (p.elL || 0)) * SC, 0); // 회전(꼬리) 공격이어도 항상 상대 쪽으로 내지름
   ctx.scale(sx, SC * (crouch ? 0.84 : 1));
@@ -761,7 +919,8 @@ function drawBody(f, x, y, facing, crouch, p, state, st) {
   ctx.restore();
 }
 function drawFighter(f) {
-  const hgt = Math.max(0, GROUND - f.y);
+  const hgt = Math.max(0, GROUND - f.y), ia = f.invis > 0 ? (f.isCPU ? 0.12 : 0.4) + (f.invis < 60 && frame % 10 < 5 ? 0.35 : 0) : 1;
+  ctx.globalAlpha = ia;
   ctx.fillStyle = `rgba(20,15,5,${0.35 * Math.max(0.2, 1 - hgt / 400)})`;
   ctx.beginPath(); ctx.ellipse(f.x, GROUND + 6, f.def.len * 0.36 * Math.max(0.3, 1 - hgt / 800), 14, 0, 0, 7); ctx.fill();
   if (f.state === 'special' && f.move.kind === 'leap' && f.st >= f.move.rise && f.y < GROUND - 50) {
@@ -770,7 +929,7 @@ function drawFighter(f) {
     txt('!', f.target, GROUND - 40 - pul * 10, 60, '#ff4d2e', 'center', '#000', 6);
   }
   ctx.globalCompositeOperation = 'lighter';
-  f.trail.forEach((g, i) => { ctx.globalAlpha = 0.12 + i * 0.05; drawBody(f, g.x, g.y, g.facing, false, g.p, 'atk', 0); });
+  if (!(f.invis > 0)) f.trail.forEach((g, i) => { ctx.globalAlpha = 0.12 + i * 0.05; drawBody(f, g.x, g.y, g.facing, false, g.p, 'atk', 0); });
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   if (f.state === 'special') {
     const cx = f.x, cy = f.y - f.def.h * 0.5, r = f.def.len * (0.6 + 0.05 * Math.sin(frame * 0.4));
@@ -779,7 +938,7 @@ function drawFighter(f) {
     ctx.strokeStyle = hexA(f.def.aura, 0.6 + 0.3 * Math.sin(frame * 0.5)); ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(f.x, GROUND + 4, f.def.len * 0.45, 20, 0, 0, 7); ctx.stroke();
   }
   if (f.flash > 0 && f.flash % 2 === 0) ctx.filter = 'brightness(2.2)';
-  if (f.inv && f.state === 'dash') ctx.globalAlpha = 0.8;
+  ctx.globalAlpha = ia * (f.inv && f.state === 'dash' ? 0.8 : 1);
   drawBody(f, f.x, f.y, f.facing, f.crouch, poseOf(f), f.state, f.st);
   ctx.filter = 'none'; ctx.globalAlpha = 1;
   // 스테고 레이저 충전: 골판을 따라 분홍 빛
@@ -790,7 +949,7 @@ function drawFighter(f) {
     ctx.globalCompositeOperation = 'source-over';
   }
   if (f.dizzy > 0) for (let i = 0; i < 3; i++) { const an = frame * 0.15 + i * 2.09; txt('★', f.x + Math.cos(an) * 34, f.y - f.def.h - 28 + Math.sin(an) * 9, 22, '#ffe066', 'center', 'rgba(0,0,0,.5)', 3); }
-  if (f.grab) { const by = f.grab.by, hx = by.x + by.facing * by.def.len * 0.35, hy = by.y - by.def.h * 0.55; ctx.strokeStyle = 'rgba(208,168,255,.9)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo((hx + f.x) / 2, Math.min(hy, f.y - f.def.h) - 40, f.x, f.y - f.def.h * 0.6); ctx.stroke(); }
+  if (f.grab && !f.grab.mode) { const by = f.grab.by, hx = by.x + by.facing * by.def.len * 0.35, hy = by.y - by.def.h * 0.55; ctx.strokeStyle = 'rgba(208,168,255,.9)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo((hx + f.x) / 2, Math.min(hy, f.y - f.def.h) - 40, f.x, f.y - f.def.h * 0.6); ctx.stroke(); }
   // 쉴드 프릴 방어: 앞쪽에 반원 보호막 (막는 순간 번쩍)
   if (f.state === 'atk' && f.move.kind === 'shield') {
     const m = f.move, s = f.st, a = m.startup, b = a + m.active, k = s <= a ? s / a : s <= b ? 1 : Math.max(0, 1 - (s - b) / m.recovery);
@@ -987,8 +1146,20 @@ function spBar(f, left) {
   if (full && frame % 30 < 20) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; rr(x - 3, y - 3, w + 6, h + 6, 6); ctx.stroke(); }
   txt(full ? (f.isCPU ? '필살기 준비!' : 'C 키로 필살기!') : '필살 게이지', left ? x : x + w, y - 16, 18, full ? '#ffd43b' : '#fff', left ? 'left' : 'right', 'rgba(0,0,0,.8)', 4);
 }
+// 랩터 친구 게이지 / 크로노 투명 상태
+function extraBar(f, left) {
+  const w = 300, x = left ? 40 : W - 40 - w, y = isTouch() ? 176 : H - 108, al = left ? 'left' : 'right', tx = left ? x : x + w;
+  if (f.def.moves.friend) {
+    const full = f.friendG >= 100;
+    txt(full ? (f.isCPU ? '친구 부르기 준비!' : 'Z로 친구 부르기!') : '친구 게이지', tx, y, 18, full ? '#ffd43b' : '#fff', al, 'rgba(0,0,0,.8)', 4);
+    for (let i = 0; i < 5; i++) { const cx = left ? x + 175 + i * 26 : x + w - 175 - i * 26; ctx.beginPath(); ctx.arc(cx, y, 10, 0, 7); ctx.fillStyle = i < f.friendG / 20 ? (full && frame % 20 < 10 ? '#fff' : '#ffd43b') : 'rgba(0,0,0,.5)'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
+  } else if (f.def.moves.x.kind === 'invis') {
+    const s = f.invis > 0 ? '투명 중! ' + Math.ceil(f.invis / 60) + '초' : f.invisCd > 0 ? '투명 다시 쓰기까지 ' + Math.ceil(f.invisCd / 60) + '초' : (f.isCPU ? '투명 준비!' : 'X로 투명!');
+    txt(s, tx, y, 18, f.invis > 0 ? '#9ad8ff' : f.invisCd > 0 ? '#cccccc' : '#4dabf7', al, 'rgba(0,0,0,.8)', 4);
+  }
+}
 function drawHUD() {
-  hpBar(P1, true); hpBar(P2, false); spBar(P1, true); spBar(P2, false);
+  hpBar(P1, true); hpBar(P2, false); spBar(P1, true); spBar(P2, false); extraBar(P1, true); extraBar(P2, false);
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.beginPath(); ctx.arc(W / 2, 46, 38, 0, 7); ctx.fill();
   const sec = Math.ceil(timer / 60); txt(String(sec), W / 2, 47, 36, sec <= 10 ? '#ff6b6b' : '#fff', 'center', null);
   if (!isTouch()) txt('← → 이동   ←← →→ 대시(회피)   뒤로 꾹=가드   ↑ 점프(↑↑ 2단)   ↓ 웅크리기   Z·X 공격   ↓+Z 낮은 공격   ↓+X 올려치기   C 필살기   M 음악', W / 2, H - 18, 15, 'rgba(255,255,255,.92)', 'center', 'rgba(0,0,0,.75)', 4);
@@ -1052,7 +1223,7 @@ function render() {
     ctx.fillStyle = 'rgba(0,0,0,.6)'; rr(40, 468, W - 80, 150, 14); ctx.fill();
     txt(d.name, 70, 500, 34, '#ffd43b', 'left'); txt(d.type, 70, 540, 24, '#fff', 'left', null);
     txt('힘 ' + stars(d.stars[0]) + '   체력 ' + stars(d.stars[1]) + '   속도 ' + stars(d.stars[2]), 70, 580, 20, '#ddd', 'left', null);
-    const mvL = [['Z', d.moves.z.name], ['X', d.moves.x.name], ['↓+Z', d.moves.dz.name], ['↓+X', d.moves.dx.name], ['점프+Z', d.moves.j.name], ['C 필살기', d.moves.c.name]];
+    const mvL = [['Z', d.moves.friend ? d.moves.z.name + ' → 친구 부르기' : d.moves.z.name], ['X', d.moves.x.name], ['↓+Z', d.moves.dz.name], ['↓+X', d.moves.dx.name], ['점프+Z', d.moves.j.name], ['C 필살기', d.moves.c.name]];
     mvL.forEach(([k, n], i) => { const x = 560 + (i % 2) * 340, y = 495 + Math.floor(i / 2) * 40; txt(k, x, y, 20, i === 5 ? '#ff922b' : '#9ad8ff', 'left', null); txt(n, x + 95, y, fitFont(n, 22, 235), i === 5 ? '#ff922b' : '#fff', 'left', null); });
     if (isTouch()) confirmBtn('이 공룡으로 결정!'); else txt('방향키로 고르기     Enter 결정     Esc 뒤로', W / 2, 650, 24, '#fff');
     if (lossStreak >= 3) txt('도움말: 상대 공격은 점프나 뒤로 톡 눌러서 피할 수 있어요! 난이도를 쉬움으로 바꿔도 좋아요.', W / 2, 692, 20, '#9ad8ff');
