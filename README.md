@@ -84,7 +84,7 @@ dino-duel/
 
 - 공룡: `<키>_idle.png`(기본), `<키>_attack.png`(공격) — 오른쪽을 보는 전신 옆모습, 투명 배경
 - 키: `trex`, `trice`, `stego`, `ankylo`, `spino`, `theri`, `pachy`, `ptera`, `raptor`, `giga`, `krono`
-- 경기장 배경 (16:9): `bg_forest.jpg`, `bg_meadow.jpg`, `bg_desert.jpg`, `bg_lava.jpg`, `bg_meteor.jpg` — 난이도 화면에서 미리보기를 보고 고릅니다 (키보드: ↑↓로 줄 바꾸기, ←→로 고르기 / 터치: 미리보기를 누르기).
+- 경기장 배경 (16:9): `bg_forest.jpg`, `bg_meadow.jpg`, `bg_desert.jpg`, `bg_lava.jpg`, `bg_meteor.jpg`, `bg_beach.jpg`(바닷가), `bg_ocean.jpg`(바다 속, 물방울이 보글보글 올라감) — 바다 사진이 없으면 코드로 그린 해변과 움직이는 파도를 씀 — 난이도 화면에서 미리보기를 보고 고릅니다 (키보드: ↑↓로 줄 바꾸기, ←→로 고르기 / 터치: 미리보기를 누르기).
 - AI 도구가 체크무늬를 그려 넣은 "가짜 투명" 이미지도 됩니다: `assets/raw/<키>_idle.webp`, `<키>_attack.webp`를 넣고 개발 서버에서 `tools/cutout.html?keys=<키>`를 열면 배경을 지우고 두 장을 같은 크기로 잘라 `assets/`에 저장합니다. 배경은 `assets/raw/bg_<이름>.webp`를 넣고 `?bg=forest,lava`처럼 붙이면 워터마크를 덮어 `bg_<이름>.jpg`로 저장합니다.
 - 이미지 생성 프롬프트: `IMAGE_PROMPTS.md`
 

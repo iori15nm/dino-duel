@@ -15,11 +15,11 @@ const selRect = i => ({ x: SEL.x0 + (i % SEL.cols) * (SEL.cw + SEL.gx), y: SEL.y
 // 이미지 교체: assets/<공룡키>_idle.png, _attack.png, bg_forest.png 가 있으면 사용
 const IMG = {};
 // 경기장 배경: 대결을 시작할 때마다 이 중 하나를 무작위로 고른다 (없는 파일은 건너뜀)
-const STAGES = ['forest', 'meadow', 'desert', 'lava', 'meteor'];
-const STAGE_NAMES = ['숲', '초원', '사막', '용암', '운석'];
+const STAGES = ['forest', 'meadow', 'desert', 'lava', 'meteor', 'beach', 'ocean'];
+const STAGE_NAMES = ['숲', '초원', '사막', '용암', '운석', '바닷가', '바다 속'];
 // 난이도 화면 배치 (터치 판정에서도 같이 씀)
 const DIFF_BOX = { x0: W / 2 - 330, y: 98, h: 60 };
-const STAGE_BOX = { x0: (W - (5 * 200 + 4 * 18)) / 2, y: 202, w: 200, h: 112, gap: 18 };
+const STAGE_BOX = { x0: (W - (STAGES.length * 160 + (STAGES.length - 1) * 12)) / 2, y: 202, w: 160, h: 100, gap: 12 };
 let stage = 'forest', stageIdx = 0, diffRow = 0; // 난이도 화면에서 고른 경기장 (diffRow: 0=난이도 줄, 1=경기장 줄)
 // 이미지를 모두 받기 전에는 로딩 화면만 보여줌 (예전 코드 그림이 잠깐 보이는 문제 방지)
 const ASSETS = [...DINOS.flatMap(d => [d.key + '_idle.png', d.key + '_attack.png']), ...STAGES.map(k => 'bg_' + k + '.jpg')];
@@ -1030,12 +1030,61 @@ const BG = (() => {
   g.save(); g.translate(W, 0); g.scale(-1, 1); fern(g, -10, GROUND - 10, 170, -0.5, '#2f5a2a'); fern(g, 10, GROUND, 140, -0.15, '#3a6a30'); g.restore();
   return c;
 })();
+// 바다 경기장: 하늘·태양·먼 화산섬·바다·모래사장 (한 번 그려서 저장)
+const SEA = 300, SHORE = 548;
+const OCEAN = (() => {
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), Rn = rng(11);
+  let gr = g.createLinearGradient(0, 0, 0, SEA);
+  gr.addColorStop(0, '#3f8fd6'); gr.addColorStop(0.6, '#9fd3f5'); gr.addColorStop(1, '#ffe2b8');
+  g.fillStyle = gr; g.fillRect(0, 0, W, SEA + 2);
+  const sun = g.createRadialGradient(960, 140, 10, 960, 140, 260); sun.addColorStop(0, 'rgba(255,255,235,1)'); sun.addColorStop(0.12, 'rgba(255,245,200,.9)'); sun.addColorStop(1, 'rgba(255,230,170,0)');
+  g.fillStyle = sun; g.fillRect(600, 0, 680, SEA);
+  for (let i = 0; i < 7; i++) { // 뭉게구름
+    const cx = Rn() * W, cy = 50 + Rn() * 140, w = 90 + Rn() * 120; g.fillStyle = 'rgba(255,255,255,.75)';
+    for (let j = 0; j < 6; j++) { g.beginPath(); g.ellipse(cx + (j - 2.5) * w * 0.28, cy - Math.sin(j / 5 * Math.PI) * w * 0.18, w * 0.3, w * 0.18, 0, 0, 7); g.fill(); }
+  }
+  const isle = (x, w, h, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(x - w, SEA + 2); g.quadraticCurveTo(x - w * 0.35, SEA - h * 0.6, x - w * 0.12, SEA - h); g.lineTo(x + w * 0.1, SEA - h * 0.97); g.quadraticCurveTo(x + w * 0.4, SEA - h * 0.5, x + w, SEA + 2); g.fill(); };
+  isle(250, 220, 120, '#7f9fb8'); isle(470, 120, 60, '#8fb0c6'); isle(1120, 170, 85, '#86a7bf');
+  g.fillStyle = 'rgba(240,240,240,.55)'; g.beginPath(); g.ellipse(255, SEA - 140, 40, 22, 0, 0, 7); g.fill(); // 화산섬 연기
+  gr = g.createLinearGradient(0, SEA, 0, SHORE);
+  gr.addColorStop(0, '#2d7fbd'); gr.addColorStop(0.45, '#1f6aa6'); gr.addColorStop(0.85, '#27a6bd'); gr.addColorStop(1, '#5fd1cf');
+  g.fillStyle = gr; g.fillRect(0, SEA, W, SHORE - SEA + 4);
+  const glit = g.createRadialGradient(960, SEA + 30, 5, 960, SEA + 60, 260); glit.addColorStop(0, 'rgba(255,250,220,.55)'); glit.addColorStop(1, 'rgba(255,250,220,0)');
+  g.fillStyle = glit; g.fillRect(600, SEA, 680, 200);
+  gr = g.createLinearGradient(0, SHORE, 0, H);
+  gr.addColorStop(0, '#c7a46c'); gr.addColorStop(0.12, '#e9cf98'); gr.addColorStop(0.6, '#f1dba8'); gr.addColorStop(1, '#d8b77c');
+  g.fillStyle = gr; g.fillRect(0, SHORE, W, H - SHORE);
+  for (let i = 0; i < 900; i++) { g.fillStyle = Rn() < 0.5 ? 'rgba(160,120,70,.25)' : 'rgba(255,250,230,.35)'; g.fillRect(Rn() * W, SHORE + 10 + Rn() * (H - SHORE), 2, 2); }
+  const rock = (x, y, w, h) => { const rg = g.createLinearGradient(0, y - h, 0, y); rg.addColorStop(0, '#8a8f94'); rg.addColorStop(1, '#4b5056'); g.fillStyle = rg; g.beginPath(); g.ellipse(x, y, w, h, 0, Math.PI, 0); g.fill(); g.fillStyle = 'rgba(30,60,40,.5)'; g.fillRect(x - w, y - 4, w * 2, 4); };
+  rock(60, SHORE + 30, 70, 50); rock(130, SHORE + 40, 40, 26); rock(1210, SHORE + 34, 80, 56); rock(1140, SHORE + 44, 34, 22);
+  for (let i = 0; i < 10; i++) { const x = 160 + Rn() * 960, y = 650 + Rn() * 60; g.fillStyle = Rn() < 0.5 ? '#fff1e0' : '#f7c9a8'; g.beginPath(); g.ellipse(x, y, 6, 4, Rn(), 0, 7); g.fill(); } // 조개껍데기
+  return c;
+})();
+function drawOcean() {
+  ctx.drawImage(OCEAN, 0, 0);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; // 바다 물결
+  for (let i = 0; i < 9; i++) { const y = SEA + 20 + i * 26, amp = 2 + i * 0.6; ctx.beginPath(); for (let x = 0; x <= W; x += 20) { const yy = y + Math.sin(x * 0.02 + frame * 0.04 + i * 1.3) * amp; x ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); } ctx.stroke(); }
+  for (let i = 0; i < 26; i++) { const ph = frame * 0.05 + i * 2.1, a = Math.max(0, Math.sin(ph)); if (a < 0.2) continue; // 햇빛 반짝임
+    const x = 760 + ((i * 97) % 420), y = SEA + 10 + ((i * 53) % 150); ctx.fillStyle = 'rgba(255,255,240,' + a * 0.9 + ')'; ctx.fillRect(x - 6, y, 12, 2); }
+  const t = frame * 0.025, push = Math.sin(t) * 14; // 밀려왔다 빠지는 파도
+  ctx.fillStyle = 'rgba(95,209,207,.45)'; ctx.beginPath(); ctx.moveTo(0, SHORE - 6);
+  for (let x = 0; x <= W; x += 20) ctx.lineTo(x, SHORE + 10 + push + Math.sin(x * 0.03 + t * 3) * 5);
+  ctx.lineTo(W, SHORE - 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 5; ctx.beginPath();
+  for (let x = 0; x <= W; x += 20) { const yy = SHORE + 8 + push + Math.sin(x * 0.03 + t * 3) * 5; x ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+  ctx.stroke();
+}
 const motes = Array.from({ length: 30 }, (_, i) => ({ x: R() * W, y: 150 + R() * 400, s: 0.2 + R() * 0.4, ph: i }));
 function drawBG(dim) {
-  const im = IMG['bg_' + stage] || IMG.bg_forest;
-  if (im) { const s = Math.max(W / im.width, H / im.height); ctx.drawImage(im, (W - im.width * s) / 2, (H - im.height * s) / 2, im.width * s, im.height * s); }
+  const sea = stage === 'ocean' || stage === 'beach', im = IMG['bg_' + stage] || (sea ? null : IMG.bg_forest);
+  if (!im && sea) drawOcean(); // 사진이 없으면 코드로 그린 해변
+  else if (im) { const s = Math.max(W / im.width, H / im.height); ctx.drawImage(im, (W - im.width * s) / 2, (H - im.height * s) / 2, im.width * s, im.height * s); }
   else ctx.drawImage(BG, 0, 0);
   for (const m of motes) { m.x += m.s; if (m.x > W) m.x = 0; ctx.fillStyle = `rgba(255,240,200,${0.3 + 0.3 * Math.sin(frame * 0.03 + m.ph)})`; ctx.beginPath(); ctx.arc(m.x, m.y + Math.sin(frame * 0.02 + m.ph) * 10, 1.6, 0, 7); ctx.fill(); }
+  if (stage === 'ocean') for (let i = 0; i < 24; i++) { // 바다 속: 보글보글 올라가는 물방울
+    const sp = 0.6 + (i % 5) * 0.25, y = H - ((frame * sp + i * 97) % (H + 40)), x = (i * 211) % W + Math.sin(frame * 0.03 + i) * 8, r = 2 + (i % 4);
+    ctx.strokeStyle = 'rgba(220,245,255,.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+  }
   if (dim) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, W, H); }
 }
 
@@ -1243,7 +1292,7 @@ function render() {
       const x = STAGE_BOX.x0 + i * (STAGE_BOX.w + STAGE_BOX.gap), y = STAGE_BOX.y, w = STAGE_BOX.w, h = STAGE_BOX.h, sel = i === stageIdx, im = IMG['bg_' + k];
       ctx.save(); rr(x, y, w, h, 12); ctx.clip();
       if (im) { const sc = Math.max(w / im.width, h / im.height); ctx.drawImage(im, x + (w - im.width * sc) / 2, y + (h - im.height * sc) / 2, im.width * sc, im.height * sc); }
-      else ctx.drawImage(BG, x, y, w, h);
+      else ctx.drawImage(k === 'ocean' || k === 'beach' ? OCEAN : BG, x, y, w, h);
       if (!sel) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x, y, w, h); }
       ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, y + h - 30, w, 30); ctx.restore();
       txt(STAGE_NAMES[i], x + w / 2, y + h - 15, 20, sel ? '#ffd43b' : '#fff', 'center', null);

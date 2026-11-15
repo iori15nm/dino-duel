@@ -129,7 +129,7 @@ function crop(src, box, maxW) {
   for (const name of bgs ? (bgs === '1' ? ['forest'] : bgs.split(',')) : []) {
     const bg = await load('../assets/raw/bg_' + name + '.webp'), c = document.createElement('canvas'); c.width = bg.width; c.height = bg.height;
     const g = c.getContext('2d'); g.drawImage(bg, 0, 0);
-    const W = c.width, H = c.height, pw = Math.round(W * 0.09), ph = Math.round(H * 0.12);
+    const W = c.width, H = c.height, pw = Math.round(W * 0.12), ph = Math.round(H * 0.2); // 워터마크(✦)가 오른쪽 아래 약 91%, 84% 위치에 있음
     g.drawImage(c, W - pw * 2 - 10, H - ph, pw, ph, W - pw, H - ph, pw, ph); // 워터마크 자리를 왼쪽 옆 풍경으로 덮기
     log('bg_' + name + ': ' + await save('bg_' + name + '.jpg', c, 'image/jpeg', 0.88));
     c.style.maxWidth = '100%'; out.append(c);
