@@ -440,6 +440,31 @@ const DINOS = [
       dx: mv('날개 치기', 'wingup', 'up', 9, 8, 18, 270, 170, 75, 10, { air: true }),
       j: mv('공중 쪼기', 'dive', 'air', 5, 10, 8, 270, 150, 65, 8, { air: true }),
       c: mv('프테라 애로우', 'arrow', 'mid', 22, 20, 24, 300, 230, 230, 20, { special: true, kind: 'dash', dash: 26, air: true, launch: true, fx: 'arrow' }) } },
+  // ---- 새 캐릭터 3종 (실사 이미지 전용, 기술은 아이가 이름을 정하면 바꿀 임시 기술) ----
+  { key: 'raptor', name: '벨로키랍토르', type: '스피드형', hp: 900, speed: 4.4, jump: 18, grav: 0.8, bw: 150, h: 165, len: 340, imgScale: 1.25, draw: drawPachy, stars: [3, 2, 5], aura: '#ffd43b',
+    moves: {
+      z: mv('발톱 할퀴기', 'claw', 'mid', 6, 5, 12, 270, 130, 45, 7),
+      x: mv('낫발톱 점프킥', 'ram', 'mid', 12, 9, 20, 290, 150, 90, 13, { lunge: 11 }),
+      dz: mv('꼬리 쓸기', 'spin', 'low', 10, 6, 16, 280, 140, 55, 8),
+      dx: mv('올려 차기', 'toss', 'up', 9, 7, 18, 270, 150, 75, 10, { air: true }),
+      j: mv('공중 낫발톱', 'dive', 'air', 5, 10, 8, 260, 150, 65, 8, { air: true }),
+      c: mv('랩터 연속 습격', 'charge', 'mid', 16, 34, 22, 300, 200, 60, 7, { special: true, kind: 'dash', dash: 18, hits: 4, interval: 7, launch: true, fx: 'slash' }) } },
+  { key: 'giga', name: '기가노토사우루스', type: '거대형', hp: 1150, speed: 3.0, jump: 14, grav: 0.8, bw: 230, h: 240, len: 540, imgScale: 1.45, draw: drawTrex, stars: [5, 4, 2], aura: '#e8590c',
+    moves: {
+      z: mv('꼬리 후려치기', 'tailsmash', 'mid', 10, 7, 17, 330, 180, 62, 13, { hitText: '후려치기!' }),
+      x: mv('칼날 이빨 물기', 'waterbite', 'mid', 16, 8, 22, 350, 150, 105, 12),
+      dz: mv('낮은 꼬리 쓸기', 'spin', 'low', 11, 7, 18, 320, 160, 62, 9),
+      dx: mv('올려 물기', 'upbite', 'up', 10, 7, 20, 300, 150, 80, 10, { air: true }),
+      j: mv('공중 물기', 'bite', 'air', 5, 10, 8, 280, 150, 68, 8, { air: true }),
+      c: mv('기가 크러시', 'megabite', 'mid', 22, 30, 24, 340, 200, 128, 10, { special: true, kind: 'dash', dash: 14, hits: 2, interval: 12, launch: true, fx: 'bite' }) } },
+  { key: 'krono', name: '크로노사우루스', type: '바다형', hp: 1050, speed: 3.2, jump: 13, grav: 0.45, bw: 220, h: 175, hurtLow: 30, len: 480, imgScale: 1.15, imgLift: 45, draw: drawSpino, stars: [4, 3, 3], aura: '#4dabf7',
+    moves: {
+      z: mv('지느러미 치기', 'wingbeat', 'mid', 8, 6, 14, 300, 170, 50, 10),
+      x: mv('거대 턱 물기', 'waterbite', 'mid', 15, 8, 22, 350, 160, 100, 11, { hitFx: 'water' }),
+      dz: mv('꼬리 쓸기', 'spin', 'low', 11, 7, 18, 310, 150, 58, 9),
+      dx: mv('솟구쳐 물기', 'upbite', 'up', 10, 7, 20, 290, 150, 80, 10, { air: true }),
+      j: mv('공중 덮치기', 'dive', 'air', 5, 10, 8, 270, 160, 66, 8, { air: true }),
+      c: mv('바다의 소용돌이', 'roar', 'mid', 22, 30, 24, 0, 0, 64, 8, { special: true, kind: 'proj', proj: 'tornado', launch: true, fx: 'water' }) } },
 ];
 const DINO = Object.fromEntries(DINOS.map(d => [d.key, d]));
 // 강한 공격(X, ↓+X)은 힘 모으기·크게 내지르기·"쾅!" 연출을 받는다

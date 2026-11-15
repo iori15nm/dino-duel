@@ -48,8 +48,7 @@ function menuTap(x, y) {
   if (scene === 'select' || scene === 'diff') {
     if (inRect(x, y, CONFIRM)) { pressed.Enter = true; return; }
     if (scene === 'select') {
-      const cw = 290, ch = 175, gx = 16, x0 = (W - (cw * 4 + gx * 3)) / 2;
-      for (let i = 0; i < 8; i++) if (inRect(x, y, { x: x0 + (i % 4) * (cw + gx), y: 85 + Math.floor(i / 4) * (ch + 14), w: cw, h: ch })) { selIdx = i; Sound.sfx(500, 0.06, 'triangle', 0.08); }
+      for (let i = 0; i < DINOS.length; i++) if (inRect(x, y, selRect(i))) { selIdx = i; Sound.sfx(500, 0.06, 'triangle', 0.08); }
     } else {
       for (let i = 0; i < 3; i++) if (inRect(x, y, { x: DIFF_BOX.x0 + i * 230, y: DIFF_BOX.y, w: 200, h: DIFF_BOX.h })) { diffIdx = i; diffRow = 0; Sound.sfx(600, 0.06, 'triangle', 0.08); }
       for (let i = 0; i < STAGES.length; i++) if (inRect(x, y, { x: STAGE_BOX.x0 + i * (STAGE_BOX.w + STAGE_BOX.gap), y: STAGE_BOX.y, w: STAGE_BOX.w, h: STAGE_BOX.h })) { stageIdx = i; diffRow = 1; Sound.sfx(600, 0.06, 'triangle', 0.08); }

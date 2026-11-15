@@ -6,7 +6,11 @@ const DIFF = [
   { name: '어려움', react: 10, agg: 0.75, guard: 0.5, dodge: 0.3, dmg: 1.05 },
 ];
 // 선택 카드에 맞추기 위한 대략적인 그림 높이
-const VH = { trex: 215, trice: 235, stego: 245, ankylo: 175, spino: 335, theri: 320, pachy: 180, ptera: 280 };
+const VH = { trex: 215, trice: 235, stego: 245, ankylo: 175, spino: 335, theri: 320, pachy: 180, ptera: 280, raptor: 200, giga: 250, krono: 200 };
+// 공룡 선택 카드 배치 (6칸 × 2줄, 터치 판정에서도 같이 씀)
+const SEL = { cols: 6, cw: 196, ch: 175, gx: 12, y0: 85 };
+SEL.x0 = (W - (SEL.cw * SEL.cols + SEL.gx * (SEL.cols - 1))) / 2;
+const selRect = i => ({ x: SEL.x0 + (i % SEL.cols) * (SEL.cw + SEL.gx), y: SEL.y0 + Math.floor(i / SEL.cols) * (SEL.ch + 14), w: SEL.cw, h: SEL.ch });
 
 // 이미지 교체: assets/<공룡키>_idle.png, _attack.png, bg_forest.png 가 있으면 사용
 const IMG = {};
@@ -924,9 +928,8 @@ function update() {
   if (cam && --cam.t <= 0) cam = null;
   if (scene === 'title') { if (enter) { scene = 'select'; Sound.roar(); } }
   else if (scene === 'select') {
-    const c = selIdx % 4, r = Math.floor(selIdx / 4);
-    if (pressed.ArrowLeft) selIdx = r * 4 + (c + 3) % 4; if (pressed.ArrowRight) selIdx = r * 4 + (c + 1) % 4;
-    if (pressed.ArrowUp || pressed.ArrowDown) selIdx = (selIdx + 4) % 8;
+    if (pressed.ArrowLeft) selIdx = (selIdx + DINOS.length - 1) % DINOS.length; if (pressed.ArrowRight) selIdx = (selIdx + 1) % DINOS.length;
+    if (pressed.ArrowUp || pressed.ArrowDown) { const t = selIdx + (pressed.ArrowDown ? SEL.cols : -SEL.cols); selIdx = t >= 0 && t < DINOS.length ? t : selIdx; }
     if (pressed.ArrowLeft || pressed.ArrowRight || pressed.ArrowUp || pressed.ArrowDown) Sound.sfx(500, 0.06, 'triangle', 0.08);
     if (enter) { scene = 'diff'; Sound.sfx(800, 0.1, 'square', 0.08); } if (esc) scene = 'title';
   }
@@ -1044,8 +1047,7 @@ function render() {
   } else if (scene === 'select') {
     drawBG(0.5);
     txt('나의 공룡을 골라요!', W / 2, 48, 42, '#ffe066');
-    const cw = 290, ch = 175, gx = 16, x0 = (W - (cw * 4 + gx * 3)) / 2;
-    DINOS.forEach((d, i) => dinoCard(d, x0 + (i % 4) * (cw + gx), 85 + Math.floor(i / 4) * (ch + 14), cw, ch, i === selIdx, i));
+    DINOS.forEach((d, i) => { const r = selRect(i); dinoCard(d, r.x, r.y, r.w, r.h, i === selIdx, i); });
     const d = DINOS[selIdx];
     ctx.fillStyle = 'rgba(0,0,0,.6)'; rr(40, 468, W - 80, 150, 14); ctx.fill();
     txt(d.name, 70, 500, 34, '#ffd43b', 'left'); txt(d.type, 70, 540, 24, '#fff', 'left', null);
